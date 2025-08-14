@@ -1,18 +1,24 @@
-use std::fmt::Display;
+use std::{fmt::Display, ops::Add};
 
 pub use crate::discrete::Value;
 
 pub trait PadicInteger<'a, Digit: Value> {
     fn get_p(&self) -> Digit;
     fn get_digit(&self, index: usize) -> Digit;
-    fn as_view(&'a self, view_size: usize) -> PadicIntegerView<'a, Digit>
-    where
-        Self: Sized,
-    {
+    fn as_view(&'a self, view_size: usize) -> PadicIntegerView<'a, Digit> {
         PadicIntegerView {
-            value: self,
+            value: self.as_dyn(),
             view_size: view_size,
         }
+    }
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit>;
+}
+
+impl<'a, Digit: Value> Add for &'a dyn PadicInteger<'a, Digit> {
+    type Output = Result<AdditionPadicInteger<'a, Digit>, PadicError>;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        AdditionPadicInteger::new(self, rhs)
     }
 }
 
@@ -21,24 +27,23 @@ pub struct FinitePadicInteger<Digit: Value> {
     digits: Vec<Digit>,
 }
 
-impl<'a, Digit: Value> FinitePadicInteger<Digit> {
-    pub fn new(p: Digit) -> Option<Self> {
+impl<Digit: Value> FinitePadicInteger<Digit> {
+    pub fn new(p: Digit) -> Result<Self, PadicError> {
         Self::new_with_digits(p, vec![])
     }
 
-    pub fn new_with_digits(p: Digit, digits: Vec<Digit>) -> Option<Self> {
-        if p.is_zero() || digits.iter().any(|digit| *digit >= p) {
-            None
+    pub fn new_with_digits(p: Digit, digits: Vec<Digit>) -> Result<Self, PadicError> {
+        if p.is_zero() {
+            Err(PadicError::TooSmallP)
+        } else if digits.iter().any(|digit| *digit >= p) {
+            Err(PadicError::ValuesGreaterThanOrEqualToP)
         } else {
-            Some(FinitePadicInteger {
-                p: p,
-                digits: digits,
-            })
+            Ok(FinitePadicInteger { p, digits })
         }
     }
 }
 
-impl<'a, Digit: Value + Display> PadicInteger<'a, Digit> for FinitePadicInteger<Digit> {
+impl<'a, Digit: Value> PadicInteger<'a, Digit> for FinitePadicInteger<Digit> {
     fn get_p(&self) -> Digit {
         self.p
     }
@@ -48,6 +53,81 @@ impl<'a, Digit: Value + Display> PadicInteger<'a, Digit> for FinitePadicInteger<
         } else {
             self.digits[index]
         }
+    }
+
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {
+        self
+    }
+}
+
+pub struct RepeatingPadicInteger<Digit: Value> {
+    p: Digit,
+    repeating_digits: Vec<Digit>,
+}
+
+impl<Digit: Value> RepeatingPadicInteger<Digit> {
+    pub fn new_with_digits(p: Digit, repeating_digits: Vec<Digit>) -> Result<Self, PadicError> {
+        if p.is_zero() {
+            Err(PadicError::TooSmallP)
+        } else if repeating_digits.iter().any(|digit| *digit >= p) {
+            Err(PadicError::ValuesGreaterThanOrEqualToP)
+        } else {
+            Ok(RepeatingPadicInteger {
+                p,
+                repeating_digits,
+            })
+        }
+    }
+}
+
+impl<'a, Digit: Value> PadicInteger<'a, Digit> for RepeatingPadicInteger<Digit> {
+    fn get_p(&self) -> Digit {
+        self.p
+    }
+
+    fn get_digit(&self, index: usize) -> Digit {
+        self.repeating_digits[index % self.repeating_digits.len()]
+    }
+
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {
+        self
+    }
+}
+
+pub struct AdditionPadicInteger<'a, Digit: Value> {
+    p: Digit,
+    lhs: &'a dyn PadicInteger<'a, Digit>,
+    rhs: &'a dyn PadicInteger<'a, Digit>,
+}
+
+impl<'a, Digit: Value> AdditionPadicInteger<'a, Digit> {
+    pub fn new(
+        lhs: &'a dyn PadicInteger<'a, Digit>,
+        rhs: &'a dyn PadicInteger<'a, Digit>,
+    ) -> Result<AdditionPadicInteger<'a, Digit>, PadicError> {
+        if lhs.get_p() != rhs.get_p() {
+            Err(PadicError::MismatchP)
+        } else {
+            Ok(AdditionPadicInteger {
+                p: lhs.get_p(),
+                lhs,
+                rhs,
+            })
+        }
+    }
+}
+
+impl<'a, Digit: Value> PadicInteger<'a, Digit> for AdditionPadicInteger<'a, Digit> {
+    fn get_p(&self) -> Digit {
+        self.p
+    }
+
+    fn get_digit(&self, index: usize) -> Digit {
+        self.lhs.get_digit(index) + self.rhs.get_digit(index)
+    }
+
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {
+        self
     }
 }
 
@@ -63,4 +143,11 @@ impl<'a, Digit: Value + Display> Display for PadicIntegerView<'a, Digit> {
         }
         Ok(())
     }
+}
+
+#[derive(Debug)]
+pub enum PadicError {
+    MismatchP,
+    TooSmallP,
+    ValuesGreaterThanOrEqualToP,
 }

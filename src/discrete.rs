@@ -13,7 +13,15 @@ pub trait One {
 }
 
 pub trait Value:
-    Zero + One + Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> + Rem<Output = Self> + Copy + Ord
+    Zero
+    + One
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+    + Rem<Output = Self>
+    + Copy
+    + Ord
 {
 }
 
