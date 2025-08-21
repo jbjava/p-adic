@@ -123,7 +123,22 @@ impl<'a, Digit: Value> PadicInteger<'a, Digit> for AdditionPadicInteger<'a, Digi
     }
 
     fn get_digit(&self, index: usize) -> Digit {
-        self.lhs.get_digit(index) + self.rhs.get_digit(index)
+        let p = self.p;
+
+        // 'carry' should only ever be 0 or 1
+        let mut carry = Digit::zero();
+        for i in 0..index {
+            let lhs_digit = self.lhs.get_digit(i);
+            let rhs_digit = self.rhs.get_digit(i);
+            let (digit_sum, digit_carry) = lhs_digit.add_carry(rhs_digit, p);
+            let (_, full_carry) = digit_sum.add_carry(carry, p);
+            carry = digit_carry + full_carry;
+        }
+
+        let lhs_digit = self.lhs.get_digit(index);
+        let rhs_digit = self.rhs.get_digit(index);
+        
+        lhs_digit.add_carry(rhs_digit, p).0.add_carry(carry, p).0
     }
 
     fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {
