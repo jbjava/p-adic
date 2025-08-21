@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Add};
+use std::{fmt::Display, ops::{Add, Sub}};
 
 pub use crate::discrete::Value;
 
@@ -19,6 +19,14 @@ impl<'a, Digit: Value> Add for &'a dyn PadicInteger<'a, Digit> {
 
     fn add(self, rhs: Self) -> Self::Output {
         AdditionPadicInteger::new(self, rhs)
+    }
+}
+
+impl<'a, Digit: Value> Sub for &'a dyn PadicInteger<'a, Digit> {
+    type Output = Result<SubtractionPadicInteger<'a, Digit>, PadicError>;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        SubtractionPadicInteger::new(self, rhs)
     }
 }
 
@@ -125,20 +133,68 @@ impl<'a, Digit: Value> PadicInteger<'a, Digit> for AdditionPadicInteger<'a, Digi
     fn get_digit(&self, index: usize) -> Digit {
         let p = self.p;
 
-        // 'carry' should only ever be 0 or 1
-        let mut carry = Digit::zero();
-        for i in 0..index {
+        let mut digit = Digit::zero();
+        let mut carry = false;
+        for i in 0..=index {
             let lhs_digit = self.lhs.get_digit(i);
             let rhs_digit = self.rhs.get_digit(i);
             let (digit_sum, digit_carry) = lhs_digit.add_carry(rhs_digit, p);
-            let (_, full_carry) = digit_sum.add_carry(carry, p);
-            carry = digit_carry + full_carry;
+            let (full_sum, full_carry) = digit_sum.add_carry(Digit::from_bool(carry), p);
+            digit = full_sum;
+            carry = digit_carry || full_carry;
         }
 
-        let lhs_digit = self.lhs.get_digit(index);
-        let rhs_digit = self.rhs.get_digit(index);
-        
-        lhs_digit.add_carry(rhs_digit, p).0.add_carry(carry, p).0
+        digit
+    }
+
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {
+        self
+    }
+}
+
+pub struct SubtractionPadicInteger<'a, Digit: Value> {
+    p: Digit,
+    lhs: &'a dyn PadicInteger<'a, Digit>,
+    rhs: &'a dyn PadicInteger<'a, Digit>,
+}
+
+impl<'a, Digit: Value> SubtractionPadicInteger<'a, Digit> {
+    pub fn new(
+        lhs: &'a dyn PadicInteger<'a, Digit>,
+        rhs: &'a dyn PadicInteger<'a, Digit>,
+    ) -> Result<SubtractionPadicInteger<'a, Digit>, PadicError> {
+        if lhs.get_p() != rhs.get_p() {
+            Err(PadicError::MismatchP)
+        } else {
+            Ok(SubtractionPadicInteger {
+                p: lhs.get_p(),
+                lhs,
+                rhs,
+            })
+        }
+    }
+}
+
+impl<'a, Digit: Value> PadicInteger<'a, Digit> for SubtractionPadicInteger<'a, Digit> {
+    fn get_p(&self) -> Digit {
+        self.p
+    }
+
+    fn get_digit(&self, index: usize) -> Digit {
+        let p = self.p;
+
+        let mut digit = Digit::zero();
+        let mut borrow = false;
+        for i in 0..=index {
+            let lhs_digit = self.lhs.get_digit(i);
+            let rhs_digit = self.rhs.get_digit(i);
+            let (digit_difference, digit_borrow) = lhs_digit.sub_borrow(rhs_digit, p);
+            let (full_difference, full_borrow) = digit_difference.sub_borrow(Digit::from_bool(borrow), p);
+            digit = full_difference;
+            borrow = digit_borrow || full_borrow;
+        }
+
+        digit
     }
 
     fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit> {

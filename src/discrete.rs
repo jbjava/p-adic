@@ -14,13 +14,30 @@ pub trait One {
 
 pub trait CarryingAdd<Rhs = Self> {
     type Output;
-    type CarryOutput;
 
-    /// Does a carrying add base `max` between `self` and `rhs`.
+    /// Does a carrying addition, base `base`, between `self` and `rhs`.
     /// 
-    /// `max` should be at least '2', or the equivelant in whatever
-    /// `Self` is.
-    fn add_carry(self, rhs: Rhs, max: Self) -> (Self::Output, Self::CarryOutput);
+    /// Returns in format (value, carry?) where it 'carries'
+    /// whenever it would go over base, so it just subtracts `base``
+    /// from the value it was going to have.
+    /// 
+    /// `self` and `rhs` must be less than `base`, and `base` should
+    /// be at least '2', or the equivelant in whatever `Self` is.
+    fn add_carry(self, rhs: Rhs, base: Self) -> (Self::Output, bool);
+}
+
+pub trait BorrowingSub<Rhs = Self> {
+    type Output;
+
+    /// Does a borrowing subtraction, base `base`, between `self` and `rhs`.
+    /// 
+    /// Returns in format (value, borrow?) where it 'borrows'
+    /// whenever it would go negative, so it just adds `base` to the
+    /// negative value it was going to have.
+    /// 
+    /// `self` and `rhs` must be less than `base`, and `base` should
+    /// be at least '2', or the equivelant in whatever `Self` is.
+    fn sub_borrow(self, rhs: Rhs, base: Self) -> (Self::Output, bool);
 }
 
 pub trait Value:
@@ -31,10 +48,18 @@ pub trait Value:
     + Mul<Output = Self>
     + Div<Output = Self>
     + Rem<Output = Self>
-    + CarryingAdd<Output = Self, CarryOutput = Self>
+    + CarryingAdd<Output = Self>
+    + BorrowingSub<Output = Self>
     + Copy
     + Ord
 {
+    fn from_bool(value: bool) -> Self {
+        if value {
+            Self::one()
+        } else {
+            Self::zero()
+        }
+    }
 }
 
 impl Zero for u8 {
@@ -59,13 +84,23 @@ impl One for u8 {
 
 impl CarryingAdd for u8 {
     type Output = Self;
-    type CarryOutput = Self;
     
-    fn add_carry(self, rhs: Self, max: Self) -> (Self::Output, Self::CarryOutput) {
+    fn add_carry(self, rhs: Self, base: Self) -> (Self::Output, bool) {
         let result_raw = self as u16 + rhs as u16;
-        let carry = result_raw / max as u16;
-        return ((result_raw % max as u16) as u8, carry as u8);
+        let carry = result_raw >= base as u16;
+        return ((result_raw % base as u16) as u8, carry);
     }
+}
+
+impl BorrowingSub for u8 {
+    type Output = Self;
+    
+    fn sub_borrow(self, rhs: Self, base: Self) -> (Self::Output, bool) {
+        let result_raw = self as i16 - rhs as i16;
+        let borrow = result_raw < 0;
+        // we have to use a 'negative-safe' version of %
+        return ((result_raw.rem_euclid(base as i16)) as u8, borrow);
+    }    
 }
 
 impl Value for u8 {}
