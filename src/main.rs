@@ -29,6 +29,12 @@ fn main() -> Result<(), PadicError> {
     output.push(("i = h + e", i));
     let j: Padic = &(i + e)?;
     output.push(("j = i + e", j));
+    let j2: Padic = &(j - e)?;
+    output.push(("j2 = j - e", j2));
+    let j3: Padic = &(j2 - e)?;
+    output.push(("j3 = j2 - e", j3));
+    let j4: Padic = &(j3 - e)?;
+    output.push(("j4 = j3 - e", j4));
     let k: Padic = &FinitePadicInteger::new_with_digits(p, vec![])?;
     output.push(("k", k));
     let l: Padic = &FinitePadicInteger::new_with_digits(p, vec![1])?;
@@ -38,7 +44,7 @@ fn main() -> Result<(), PadicError> {
 
     
     for (label, number) in output {
-        println!("{} : {}", number.as_view(20), label);
+        println!("{} : {}", number.as_view(10), label);
     }
 
     Ok(())

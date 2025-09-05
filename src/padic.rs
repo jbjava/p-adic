@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::{Add, Sub}};
+use std::{cell::Cell, fmt::Display, ops::{Add, Sub}};
 
 pub use crate::discrete::Value;
 
@@ -106,6 +106,7 @@ pub struct AdditionPadicInteger<'a, Digit: Value> {
     p: Digit,
     lhs: &'a dyn PadicInteger<'a, Digit>,
     rhs: &'a dyn PadicInteger<'a, Digit>,
+    cache: Cell<(Vec<Digit>, bool)>,
 }
 
 impl<'a, Digit: Value> AdditionPadicInteger<'a, Digit> {
@@ -120,6 +121,7 @@ impl<'a, Digit: Value> AdditionPadicInteger<'a, Digit> {
                 p: lhs.get_p(),
                 lhs,
                 rhs,
+                cache: Cell::new((vec![], false)),
             })
         }
     }
@@ -133,16 +135,20 @@ impl<'a, Digit: Value> PadicInteger<'a, Digit> for AdditionPadicInteger<'a, Digi
     fn get_digit(&self, index: usize) -> Digit {
         let p = self.p;
 
-        let mut digit = Digit::zero();
-        let mut carry = false;
-        for i in 0..=index {
+        let (mut digit_cache, mut carry) = self.cache.take();
+
+        let mut digit = *digit_cache.get(index).unwrap_or(&Digit::zero());
+        for i in digit_cache.len()..=index {
             let lhs_digit = self.lhs.get_digit(i);
             let rhs_digit = self.rhs.get_digit(i);
             let (digit_sum, digit_carry) = lhs_digit.add_carry(rhs_digit, p);
             let (full_sum, full_carry) = digit_sum.add_carry(Digit::from_bool(carry), p);
             digit = full_sum;
             carry = digit_carry || full_carry;
+            digit_cache.push(digit);
         }
+
+        self.cache.set((digit_cache, carry));
 
         digit
     }
@@ -156,6 +162,7 @@ pub struct SubtractionPadicInteger<'a, Digit: Value> {
     p: Digit,
     lhs: &'a dyn PadicInteger<'a, Digit>,
     rhs: &'a dyn PadicInteger<'a, Digit>,
+    cache: Cell<(Vec<Digit>, bool)>,
 }
 
 impl<'a, Digit: Value> SubtractionPadicInteger<'a, Digit> {
@@ -170,6 +177,7 @@ impl<'a, Digit: Value> SubtractionPadicInteger<'a, Digit> {
                 p: lhs.get_p(),
                 lhs,
                 rhs,
+                cache: Cell::new((vec![], false)),
             })
         }
     }
@@ -183,16 +191,20 @@ impl<'a, Digit: Value> PadicInteger<'a, Digit> for SubtractionPadicInteger<'a, D
     fn get_digit(&self, index: usize) -> Digit {
         let p = self.p;
 
-        let mut digit = Digit::zero();
-        let mut borrow = false;
-        for i in 0..=index {
+        let (mut digit_cache, mut borrow) = self.cache.take();
+
+        let mut digit = *digit_cache.get(index).unwrap_or(&Digit::zero());
+        for i in digit_cache.len()..=index {
             let lhs_digit = self.lhs.get_digit(i);
             let rhs_digit = self.rhs.get_digit(i);
             let (digit_difference, digit_borrow) = lhs_digit.sub_borrow(rhs_digit, p);
             let (full_difference, full_borrow) = digit_difference.sub_borrow(Digit::from_bool(borrow), p);
             digit = full_difference;
             borrow = digit_borrow || full_borrow;
+            digit_cache.push(digit);
         }
+
+        self.cache.set((digit_cache, borrow));
 
         digit
     }
