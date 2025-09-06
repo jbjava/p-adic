@@ -1,5 +1,7 @@
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
+use crate::padic;
+
 pub trait Zero {
     fn zero() -> Self;
 
@@ -62,7 +64,7 @@ pub trait Value:
     }
 }
 
-impl Zero for u8 {
+impl Zero for padic::Digit {
     fn zero() -> Self {
         0
     }
@@ -72,7 +74,7 @@ impl Zero for u8 {
     }
 }
 
-impl One for u8 {
+impl One for padic::Digit {
     fn one() -> Self {
         1
     }
@@ -92,6 +94,16 @@ impl CarryingAdd for u8 {
     }
 }
 
+impl CarryingAdd for u64 {
+    type Output = Self;
+    
+    fn add_carry(self, rhs: Self, base: Self) -> (Self::Output, bool) {
+        let result_raw = self as u128 + rhs as u128;
+        let carry = result_raw >= base as u128;
+        return ((result_raw % base as u128) as u64, carry);
+    }
+}
+
 impl BorrowingSub for u8 {
     type Output = Self;
     
@@ -100,7 +112,19 @@ impl BorrowingSub for u8 {
         let borrow = result_raw < 0;
         // we have to use a 'negative-safe' version of %
         return ((result_raw.rem_euclid(base as i16)) as u8, borrow);
-    }    
+    }
 }
 
-impl Value for u8 {}
+impl BorrowingSub for u64 {
+    type Output = Self;
+    
+    fn sub_borrow(self, rhs: Self, base: Self) -> (Self::Output, bool) {
+        let result_raw = self as i128 - rhs as i128;
+        let borrow = result_raw < 0;
+        // we have to use a 'negative-safe' version of %
+        return ((result_raw.rem_euclid(base as i128)) as u64, borrow);
+    }
+}
+
+
+impl Value for padic::Digit {}
