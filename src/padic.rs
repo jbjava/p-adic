@@ -62,9 +62,6 @@ impl<'a, Digit: Value, const P: Digit> Div for &'a dyn PadicInteger<'a, Digit, P
     }
 }
 
-struct A<T> {
-    v: T,
-}
 pub struct FinitePadicInteger<Digit: Value, const P: Digit> {
     digits: Vec<Digit>,
 }
