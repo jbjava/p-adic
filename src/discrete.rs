@@ -1,6 +1,4 @@
-use std::ops::{Add, Div, Mul, Rem, Sub};
-
-use crate::padic;
+use std::{fmt::Display, marker::ConstParamTy_, ops::{Add, Div, Mul, Rem, Sub}};
 
 pub trait Zero {
     fn zero() -> Self;
@@ -42,9 +40,14 @@ pub trait BorrowingSub<Rhs = Self> {
     fn sub_borrow(self, rhs: Rhs, base: Self) -> (Self::Output, bool);
 }
 
+pub trait Invertable {
+    fn is_base_invertable(&self) -> bool;
+}
+
 pub trait Value:
     Zero
     + One
+    + Invertable
     + Add<Output = Self>
     + Sub<Output = Self>
     + Mul<Output = Self>
@@ -54,6 +57,8 @@ pub trait Value:
     + BorrowingSub<Output = Self>
     + Copy
     + Ord
+    + Display
+    + ConstParamTy_
 {
     fn from_bool(value: bool) -> Self {
         if value {
@@ -64,7 +69,7 @@ pub trait Value:
     }
 }
 
-impl Zero for padic::Digit {
+impl Zero for u8 {
     fn zero() -> Self {
         0
     }
@@ -74,13 +79,26 @@ impl Zero for padic::Digit {
     }
 }
 
-impl One for padic::Digit {
+impl One for u8 {
     fn one() -> Self {
         1
     }
 
     fn is_one(&self) -> bool {
         *self == 1
+    }
+}
+
+impl Invertable for u8 {
+    fn is_base_invertable(&self) -> bool {
+        let mut i = 2;
+        while i * i <= *self {
+            if *self % i == 0 {
+                return false;
+            }
+            i += 1;
+        }
+        true
     }
 }
 
@@ -127,4 +145,4 @@ impl BorrowingSub for u64 {
 }
 
 
-impl Value for padic::Digit {}
+impl Value for u8 {}

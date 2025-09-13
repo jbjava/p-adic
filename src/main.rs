@@ -1,9 +1,25 @@
+#![feature(adt_const_params)]
+#![feature(generic_const_exprs)]
+#![feature(min_generic_const_args)]
+#![feature(generic_const_items)]
+#![feature(associated_const_equality)]
+#![feature(unsized_const_params)]
 use crate::padic::{FinitePadicInteger, PadicError, PadicInteger, RepeatingPadicInteger};
+use std::marker::ConstParamTy;
 
-type Padic<'a> = &'a dyn PadicInteger<'a, 7>;
+type Padic<'a> = &'a dyn PadicInteger<'a, u8, 7>;
 
 pub mod discrete;
 pub mod padic;
+
+#[derive(ConstParamTy, PartialEq, Eq)]
+struct Asdf {
+    val: u8,
+}
+
+struct A<const P: Asdf> {
+
+}
 
 fn main() -> Result<(), PadicError> {
     let mut output: Vec<(&str, Padic)> = vec![];

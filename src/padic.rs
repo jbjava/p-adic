@@ -1,11 +1,9 @@
 use std::{cell::Cell, fmt::Display, ops::{Add, Div, Mul, Sub}};
 
 pub use crate::discrete::Value;
-use crate::discrete::{BorrowingSub, CarryingAdd, Zero};
+use crate::discrete::{BorrowingSub, CarryingAdd};
 
-pub type Digit = u8;
-
-pub trait PadicInteger<'a, const P: Digit> {
+pub trait PadicInteger<'a, Digit: Value, const P: Digit> {
     fn get_digit(&self, index: usize) -> Digit;
     fn as_view(&'a self, view_size: usize) -> PadicIntegerView<'a, P> {
         PadicIntegerView {
@@ -13,21 +11,21 @@ pub trait PadicInteger<'a, const P: Digit> {
             view_size: view_size,
         }
     }
-    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, P>;
+    fn as_dyn(&'a self) -> &'a dyn PadicInteger<'a, Digit, P>;
     
     /// This is not meant to be called, but it provides compile-time
     /// check that P > 0 (although if P is 1, it is probably useless).
     /// A similar method may be able to be used to check if P is prime!
     fn check(&self) {
-        struct Check<const P: Digit>();
-        impl<const P: Digit> Check<P> {
-            const POSITIVE_P: () = assert!(P > 0, "P must be greater than 0");
+        struct Check<Digit: Value, const P: Digit>();
+        impl<Digit: Value, const P: Digit> Check<P> {
+            const POSITIVE_P: () = assert!(P > Digit::zero(), "P must be greater than 0");
         }
-        let _ = Check::<P>::POSITIVE_P;
+        let _ = Check::<Digit, P>::POSITIVE_P;
     }
 }
 
-impl<'a, const P: Digit> Add for &'a dyn PadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> Add for &'a dyn PadicInteger<'a, Digit, P> {
     type Output = AdditionPadicInteger<'a, P>;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -35,7 +33,7 @@ impl<'a, const P: Digit> Add for &'a dyn PadicInteger<'a, P> {
     }
 }
 
-impl<'a, const P: Digit> Sub for &'a dyn PadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> Sub for &'a dyn PadicInteger<'a, Digit, P> {
     type Output = SubtractionPadicInteger<'a, P>;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -43,7 +41,7 @@ impl<'a, const P: Digit> Sub for &'a dyn PadicInteger<'a, P> {
     }
 }
 
-impl<'a, const P: Digit> Mul for &'a dyn PadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> Mul for &'a dyn PadicInteger<'a, Digit, P> {
     type Output = AdditionPadicInteger<'a, P>;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -51,34 +49,27 @@ impl<'a, const P: Digit> Mul for &'a dyn PadicInteger<'a, P> {
     }
 }
 
-impl<'a, const P: Digit> Div for &'a dyn PadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> Div for &'a dyn PadicInteger<'a, Digit, P> {
     type Output = SubtractionPadicInteger<'a, P>;
 
     fn div(self, rhs: Self) -> Self::Output {
-        struct Check<const P: Digit>();
-        const fn is_prime(p: Digit) -> bool {
-            let mut i = 2;
-            while i * i <= p {
-                if p % i == 0 {
-                    return false;
-                }
-                i += 1;
-            }
-            true
-        }
-        impl<const P: Digit> Check<P> {
-            const POSITIVE_P: () = assert!(is_prime(P), "P must be prime in order to use division");
+        struct Check<Digit: Value, const P: Digit>();
+        impl<Digit: Value, const P: Digit> Check<Digit, P> {
+            const POSITIVE_P: () = assert!(Digit::is_base_invertable(P), "P must be prime in order to use division");
         }
         let _ = Check::<P>::POSITIVE_P;
         SubtractionPadicInteger::new(self, rhs)
     }
 }
 
-pub struct FinitePadicInteger<const P: Digit> {
+struct A<T> {
+    v: T,
+}
+pub struct FinitePadicInteger<Digit: Value, const P: Digit> {
     digits: Vec<Digit>,
 }
 
-impl<const P: Digit> FinitePadicInteger<P> {
+impl<Digit: Value, const P: Digit> FinitePadicInteger<Digit, P> {
     pub fn new() -> Result<Self, PadicError> {
         Self::new_with_digits(vec![])
     }
@@ -92,7 +83,7 @@ impl<const P: Digit> FinitePadicInteger<P> {
     }
 }
 
-impl<'a, const P: Digit> PadicInteger<'a, P> for FinitePadicInteger<P> {
+impl<'a, Digit: Value, const P: Digit> PadicInteger<'a, P> for FinitePadicInteger<Digit, P> {
     fn get_digit(&self, index: usize) -> Digit {
         if index >= self.digits.len() {
             Digit::zero()
@@ -106,11 +97,11 @@ impl<'a, const P: Digit> PadicInteger<'a, P> for FinitePadicInteger<P> {
     }
 }
 
-pub struct RepeatingPadicInteger<const P: Digit> {
+pub struct RepeatingPadicInteger<Digit: Value, const P: Digit> {
     repeating_digits: Vec<Digit>,
 }
 
-impl<const P: Digit> RepeatingPadicInteger<P> {
+impl<Digit: Value, const P: Digit> RepeatingPadicInteger<Digit, P> {
     pub fn new_with_digits(repeating_digits: Vec<Digit>) -> Result<Self, PadicError> {
         if repeating_digits.iter().any(|digit| *digit >= P) {
             Err(PadicError::ValuesGreaterThanOrEqualToP)
@@ -120,7 +111,7 @@ impl<const P: Digit> RepeatingPadicInteger<P> {
     }
 }
 
-impl<'a, const P: Digit> PadicInteger<'a, P> for RepeatingPadicInteger<P> {
+impl<'a, Digit: Value, const P: Digit> PadicInteger<'a, P> for RepeatingPadicInteger<Digit, P> {
     fn get_digit(&self, index: usize) -> Digit {
         self.repeating_digits[index % self.repeating_digits.len()]
     }
@@ -130,13 +121,13 @@ impl<'a, const P: Digit> PadicInteger<'a, P> for RepeatingPadicInteger<P> {
     }
 }
 
-pub struct AdditionPadicInteger<'a, const P: Digit> {
+pub struct AdditionPadicInteger<'a, Digit: Value, const P: Digit> {
     lhs: &'a dyn PadicInteger<'a, P>,
     rhs: &'a dyn PadicInteger<'a, P>,
     cache: Cell<(Vec<Digit>, bool)>,
 }
 
-impl<'a, const P: Digit> AdditionPadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> AdditionPadicInteger<'a, Digit, P> {
     pub fn new(
         lhs: &'a dyn PadicInteger<'a, P>,
         rhs: &'a dyn PadicInteger<'a, P>,
@@ -149,7 +140,7 @@ impl<'a, const P: Digit> AdditionPadicInteger<'a, P> {
     }
 }
 
-impl<'a, const P: Digit> PadicInteger<'a, P> for AdditionPadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> PadicInteger<'a, Digit, P> for AdditionPadicInteger<'a, Digit, P> {
     fn get_digit(&self, index: usize) -> Digit {
         let (mut digit_cache, mut carry) = self.cache.take();
 
@@ -174,13 +165,13 @@ impl<'a, const P: Digit> PadicInteger<'a, P> for AdditionPadicInteger<'a, P> {
     }
 }
 
-pub struct SubtractionPadicInteger<'a, const P: Digit> {
+pub struct SubtractionPadicInteger<'a, Digit: Value, const P: Digit> {
     lhs: &'a dyn PadicInteger<'a, P>,
     rhs: &'a dyn PadicInteger<'a, P>,
     cache: Cell<(Vec<Digit>, bool)>,
 }
 
-impl<'a, const P: Digit> SubtractionPadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> SubtractionPadicInteger<'a, Digit, P> {
     pub fn new(
         lhs: &'a dyn PadicInteger<'a, P>,
         rhs: &'a dyn PadicInteger<'a, P>,
@@ -193,7 +184,7 @@ impl<'a, const P: Digit> SubtractionPadicInteger<'a, P> {
     }
 }
 
-impl<'a, const P: Digit> PadicInteger<'a, P> for SubtractionPadicInteger<'a, P> {
+impl<'a, Digit: Value, const P: Digit> PadicInteger<'a, Digit, P> for SubtractionPadicInteger<'a, Digit, P> {
     fn get_digit(&self, index: usize) -> Digit {
         let (mut digit_cache, mut borrow) = self.cache.take();
 
@@ -218,12 +209,12 @@ impl<'a, const P: Digit> PadicInteger<'a, P> for SubtractionPadicInteger<'a, P> 
     }
 }
 
-pub struct PadicIntegerView<'a, const P: Digit> {
-    value: &'a dyn PadicInteger<'a, P>,
+pub struct PadicIntegerView<'a, Digit: Value, const P: Digit> {
+    value: &'a dyn PadicInteger<'a, Digit, P>,
     view_size: usize,
 }
 
-impl<'a, const P: Digit> Display for PadicIntegerView<'a, P> {
+impl<'a, Digit: Value, const P: Digit> Display for PadicIntegerView<'a, Digit, P> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for i in (0..self.view_size).rev() {
             write!(f, "{}", self.value.get_digit(i))?;
