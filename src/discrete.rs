@@ -1,53 +1,48 @@
-use std::{fmt::Display, marker::ConstParamTy_, ops::{Add, Div, Mul, Rem, Sub}};
+use std::cmp::Ordering;
+use std::fmt::Formatter;
+use std::{
+    fmt::Display,
+    ops::{Add, Div, Mul, Rem, Sub},
+};
 
 pub trait Zero {
     fn zero() -> Self;
-
     fn is_zero(&self) -> bool;
 }
 
 pub trait One {
     fn one() -> Self;
-
     fn is_one(&self) -> bool;
 }
 
 pub trait CarryingAdd<Rhs = Self> {
     type Output;
 
-    /// Does a carrying addition, base `base`, between `self` and `rhs`.
-    /// 
-    /// Returns in format (value, carry?) where it 'carries'
-    /// whenever it would go over base, so it just subtracts `base``
-    /// from the value it was going to have.
-    /// 
-    /// `self` and `rhs` must be less than `base`, and `base` should
-    /// be at least '2', or the equivelant in whatever `Self` is.
-    fn add_carry(self, rhs: Rhs, base: Self) -> (Self::Output, bool);
+    /// Does a carrying addition, wrapping on the base, between `self` and `rhs`.
+    ///
+    /// Returns in format (value, carry?) where it 'carries' whenever it would go over base, so it
+    /// just subtracts the base from the value it was going to have.
+    fn add_carry(self, rhs: Rhs) -> (Self::Output, bool);
 }
 
 pub trait BorrowingSub<Rhs = Self> {
     type Output;
 
-    /// Does a borrowing subtraction, base `base`, between `self` and `rhs`.
-    /// 
-    /// Returns in format (value, borrow?) where it 'borrows'
-    /// whenever it would go negative, so it just adds `base` to the
-    /// negative value it was going to have.
-    /// 
-    /// `self` and `rhs` must be less than `base`, and `base` should
-    /// be at least '2', or the equivelant in whatever `Self` is.
-    fn sub_borrow(self, rhs: Rhs, base: Self) -> (Self::Output, bool);
+    /// Does a borrowing subtraction, wrapping on the base, between `self` and `rhs`.
+    ///
+    /// Returns in format (value, borrow?) where it 'borrows' whenever it would go negative, so it
+    /// just adds the base to the negative value it was going to have.
+    fn sub_borrow(self, rhs: Rhs) -> (Self::Output, bool);
 }
 
-pub trait Invertable {
-    fn is_base_invertable(&self) -> bool;
+pub trait Invertible {
+    fn is_base_invertible() -> bool;
 }
 
 pub trait Value:
     Zero
     + One
-    + Invertable
+    + Invertible
     + Add<Output = Self>
     + Sub<Output = Self>
     + Mul<Output = Self>
@@ -58,42 +53,56 @@ pub trait Value:
     + Copy
     + Ord
     + Display
-    + ConstParamTy_
 {
     fn from_bool(value: bool) -> Self {
-        if value {
-            Self::one()
-        } else {
-            Self::zero()
-        }
+        if value { Self::one() } else { Self::zero() }
     }
 }
 
-impl Zero for u8 {
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub struct AddGroupU8<const BASE: u8> {
+    val: u8,
+}
+
+impl<const BASE: u8> AddGroupU8<BASE> {
+    pub const fn new(val: u8) -> Option<Self> {
+        if val < BASE {
+            Some(AddGroupU8 { val })
+        } else {
+            None
+        }
+    }
+
+    pub fn new_vec(values: Vec<u8>) -> Option<Vec<Self>> {
+        values.iter().map(|x| Self::new(*x)).collect()
+    }
+}
+
+impl<const BASE: u8> Zero for AddGroupU8<BASE> {
     fn zero() -> Self {
-        0
+        Self::new(0).unwrap()
     }
 
     fn is_zero(&self) -> bool {
-        *self == 0
+        self.val == 0
     }
 }
 
-impl One for u8 {
+impl<const BASE: u8> One for AddGroupU8<BASE> {
     fn one() -> Self {
-        1
+        Self::new(1).unwrap()
     }
 
     fn is_one(&self) -> bool {
-        *self == 1
+        self.val == 1
     }
 }
 
-impl Invertable for u8 {
-    fn is_base_invertable(&self) -> bool {
+impl<const BASE: u8> Invertible for AddGroupU8<BASE> {
+    fn is_base_invertible() -> bool {
         let mut i = 2;
-        while i * i <= *self {
-            if *self % i == 0 {
+        while i * i <= BASE {
+            if BASE % i == 0 {
                 return false;
             }
             i += 1;
@@ -102,47 +111,86 @@ impl Invertable for u8 {
     }
 }
 
-impl CarryingAdd for u8 {
+impl<const BASE: u8> Add for AddGroupU8<BASE> {
     type Output = Self;
-    
-    fn add_carry(self, rhs: Self, base: Self) -> (Self::Output, bool) {
-        let result_raw = self as u16 + rhs as u16;
-        let carry = result_raw >= base as u16;
-        return ((result_raw % base as u16) as u8, carry);
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self::new((self.val + rhs.val).rem_euclid(BASE)).unwrap()
     }
 }
 
-impl CarryingAdd for u64 {
+impl<const BASE: u8> Sub for AddGroupU8<BASE> {
     type Output = Self;
-    
-    fn add_carry(self, rhs: Self, base: Self) -> (Self::Output, bool) {
-        let result_raw = self as u128 + rhs as u128;
-        let carry = result_raw >= base as u128;
-        return ((result_raw % base as u128) as u64, carry);
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::new((self.val - rhs.val).rem_euclid(BASE)).unwrap()
     }
 }
 
-impl BorrowingSub for u8 {
+impl<const BASE: u8> Mul for AddGroupU8<BASE> {
     type Output = Self;
-    
-    fn sub_borrow(self, rhs: Self, base: Self) -> (Self::Output, bool) {
-        let result_raw = self as i16 - rhs as i16;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::new((self.val as u16 * rhs.val as u16).rem_euclid(BASE as u16) as u8).unwrap()
+    }
+}
+
+impl<const BASE: u8> Div for AddGroupU8<BASE> {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        Self::new(self.val / rhs.val).unwrap()
+    }
+}
+
+impl<const BASE: u8> Rem for AddGroupU8<BASE> {
+    type Output = Self;
+
+    fn rem(self, rhs: Self) -> Self::Output {
+        Self::new(self.val % rhs.val).unwrap()
+    }
+}
+
+impl<const BASE: u8> CarryingAdd for AddGroupU8<BASE> {
+    type Output = Self;
+
+    fn add_carry(self, rhs: Self) -> (Self::Output, bool) {
+        let result_raw = self.val as u16 + rhs.val as u16;
+        let carry = result_raw >= BASE as u16;
+        (Self::new((result_raw % BASE as u16) as u8).unwrap(), carry)
+    }
+}
+
+impl<const BASE: u8> BorrowingSub for AddGroupU8<BASE> {
+    type Output = Self;
+
+    fn sub_borrow(self, rhs: Self) -> (Self::Output, bool) {
+        let result_raw = self.val as i16 - rhs.val as i16;
         let borrow = result_raw < 0;
         // we have to use a 'negative-safe' version of %
-        return ((result_raw.rem_euclid(base as i16)) as u8, borrow);
+        (
+            Self::new(result_raw.rem_euclid(BASE as i16) as u8).unwrap(),
+            borrow,
+        )
     }
 }
 
-impl BorrowingSub for u64 {
-    type Output = Self;
-    
-    fn sub_borrow(self, rhs: Self, base: Self) -> (Self::Output, bool) {
-        let result_raw = self as i128 - rhs as i128;
-        let borrow = result_raw < 0;
-        // we have to use a 'negative-safe' version of %
-        return ((result_raw.rem_euclid(base as i128)) as u64, borrow);
+impl<const BASE: u8> PartialOrd for AddGroupU8<BASE> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
+impl<const BASE: u8> Ord for AddGroupU8<BASE> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.val.cmp(&other.val)
+    }
+}
 
-impl Value for u8 {}
+impl<const BASE: u8> Display for AddGroupU8<BASE> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        self.val.fmt(f)
+    }
+}
+
+impl<const BASE: u8> Value for AddGroupU8<BASE> {}
