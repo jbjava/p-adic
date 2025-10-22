@@ -125,7 +125,7 @@ impl<const BASE: u8> Invertible for AddGroupU8<BASE> {
 
     fn inverse(self) -> Self {
         for i in 1..BASE {
-            if (i * self.val) % BASE == 1 {
+            if (i as u16 * self.val as u16) % BASE as u16 == 1 {
                 return Self::new(i).unwrap();
             }
         }
