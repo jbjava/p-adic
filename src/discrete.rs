@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::fmt::Formatter;
+use std::fmt::{Debug, Formatter};
 use std::{
     fmt::Display,
     ops::{Add, Div, Mul, Rem, Sub},
@@ -35,8 +35,20 @@ pub trait BorrowingSub<Rhs = Self> {
     fn sub_borrow(self, rhs: Rhs) -> (Self::Output, bool);
 }
 
+pub trait OverflowingMul<Rhs = Self> {
+    type Output;
+
+    /// Does an overflowing multiplication, wrapping on the base, between `self` and `rhs`.
+    ///
+    /// Returns in format (value, overflow) where the result acts as a two-digit number in the
+    /// format "`output.1` `output.0`".
+    fn mul_overflow(self, rhs: Rhs) -> (Self::Output, Self::Output);
+}
+
 pub trait Invertible {
-    fn is_base_invertible() -> bool;
+    fn is_invertible() -> bool;
+
+    fn inverse(self) -> Self;
 }
 
 pub trait Value:
@@ -50,6 +62,7 @@ pub trait Value:
     + Rem<Output = Self>
     + CarryingAdd<Output = Self>
     + BorrowingSub<Output = Self>
+    + OverflowingMul<Output = Self>
     + Copy
     + Ord
     + Display
@@ -99,15 +112,24 @@ impl<const BASE: u8> One for AddGroupU8<BASE> {
 }
 
 impl<const BASE: u8> Invertible for AddGroupU8<BASE> {
-    fn is_base_invertible() -> bool {
+    fn is_invertible() -> bool {
         let mut i = 2;
         while i * i <= BASE {
-            if BASE % i == 0 {
+            if BASE.is_multiple_of(i) {
                 return false;
             }
             i += 1;
         }
         true
+    }
+
+    fn inverse(self) -> Self {
+        for i in 1..BASE {
+            if (i * self.val) % BASE == 1 {
+                return Self::new(i).unwrap();
+            }
+        }
+        panic!("Either {} isn't prime or {} (this struct) is zero", BASE, self)
     }
 }
 
@@ -175,6 +197,18 @@ impl<const BASE: u8> BorrowingSub for AddGroupU8<BASE> {
     }
 }
 
+impl<const BASE: u8> OverflowingMul for AddGroupU8<BASE> {
+    type Output = Self;
+
+    fn mul_overflow(self, rhs: Self) -> (Self::Output, Self::Output) {
+        let result_raw = self.val as u16 * rhs.val as u16;
+        (
+            Self::new((result_raw % BASE as u16) as u8).unwrap(),
+            Self::new((result_raw / BASE as u16) as u8).unwrap(),
+        )
+    }
+}
+
 impl<const BASE: u8> PartialOrd for AddGroupU8<BASE> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
@@ -189,7 +223,11 @@ impl<const BASE: u8> Ord for AddGroupU8<BASE> {
 
 impl<const BASE: u8> Display for AddGroupU8<BASE> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.val.fmt(f)
+        if BASE > 10 {
+            write!(f, "({})", self.val)
+        } else {
+            Display::fmt(&self.val, f)
+        }
     }
 }
 
