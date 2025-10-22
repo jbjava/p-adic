@@ -25,7 +25,7 @@ pub mod padic_mul;
 pub mod padic_primitive;
 pub mod padic_sub;
 
-const BASE: u8 = 3;
+const BASE: u8 = 2;
 
 fn main() -> Result<(), String> {
     let mut length = 10;
@@ -36,8 +36,18 @@ fn main() -> Result<(), String> {
             Ok(equation) => {
                 if let Some(x) = equation.chars().nth(0) {
                     match x {
-                        'e' => evaluate(&equation[2..], &mut saved_values, length),
-                        's' => {
+                        'e' => {
+                            if equation.len() < 3 {
+                                println!("Bad format, expecting: e <expression>. Ex: e 0 1 -");
+                            } else {
+                                evaluate(&equation[2..], &mut saved_values, length)
+                            }
+                        },
+                        's' => if equation.len() < 3 {
+                            println!(
+                                "Bad format, expecting: s <variable name starts with lowercase letter> <expression>. Ex: s my_num 0 1 -"
+                            );
+                        } else {
                             let mut split = equation[2..].split_ascii_whitespace();
                             let var = split.next();
                             let equation = split.remainder();
@@ -61,12 +71,12 @@ fn main() -> Result<(), String> {
                                 }
                             } else {
                                 println!(
-                                    "Bad format, expecting: s <var name starts with lowercase letter> <expression>. Ex: s my_num 0 1 -"
+                                    "Bad format, expecting: s <variable name starts with lowercase letter> <expression>. Ex: s my_num 0 1 -"
                                 );
                             }
                         }
                         'l' => {
-                            if equation.len() > 1 && let Some(new_length) = equation[2..]
+                            if equation.len() > 2 && let Some(new_length) = equation[2..]
                                 .split_ascii_whitespace()
                                 .next()
                                 .and_then(|x| x.parse().ok())
@@ -82,9 +92,12 @@ fn main() -> Result<(), String> {
                             }
                         }
                         'q' => return Ok(()),
-                        'h' => println!(
-                            "Available commands: e (evaluate), s (set), l (set the length), v (list variables) q (quit), h (help (you're here!))"
-                        ),
+                        'h' => {
+                            println!(
+                                "Available commands: e (evaluate), s (set), l (set the length), v (list variables), q (quit), h (help (you're here!))"
+                            );
+                            println!("You are currently using the p-adic program with p = {}!", BASE);
+                        },
                         'a'..'z' | 'A'..'Z' => println!("Unknown command: {}, use the 'h' command for help", x),
                         _ => evaluate(&equation, &mut saved_values, length),
                     }
