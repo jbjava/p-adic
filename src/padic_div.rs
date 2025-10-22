@@ -53,7 +53,6 @@ impl<'a, Digit: Value + 'a> PadicAccessor<'a, Digit> for DivisivePadicIntegerSca
 }
 
 pub(crate) struct DivisionPadicInteger<'a, Digit: Value> {
-    lhs: Rc<dyn PadicIntegerAccessor<'a, Digit> + 'a>,
     rhs: Rc<dyn PadicIntegerAccessor<'a, Digit> + 'a>,
     scale_adjustment: usize,
     cache: Cell<
@@ -71,7 +70,6 @@ impl<'a, Digit: Value> DivisionPadicInteger<'a, Digit> {
         rhs: Rc<dyn PadicIntegerAccessor<'a, Digit> + 'a>,
     ) -> DivisionPadicInteger<'a, Digit> {
         DivisionPadicInteger {
-            lhs: lhs.clone(),
             rhs: rhs.clone(),
             scale_adjustment: {
                 let mut scale_adjustment = 0;
@@ -118,7 +116,7 @@ impl<'a, Digit: Value + 'a> PadicAccessor<'a, Digit> for DivisionPadicInteger<'a
                                         v
                                     })
                                     .to_dyn()
-                                        * PadicIntegerToNumber::new(self.rhs.clone(), 0).to_dyn())),
+                                        * PadicIntegerToNumber::new(self.rhs.clone(), self.scale_adjustment as isize).to_dyn())),
                                 0,
                             ));
                         }

@@ -121,7 +121,7 @@ impl<'a, Digit: Value + 'a> Display for PadicNumberView<'a, Digit> {
             }
             if digit_buffer.len() > 0 {
                 write!(f, ".")?;
-                for digit in digit_buffer {
+                for digit in digit_buffer.iter().rev() {
                     write!(f, "{}", digit)?;
                 }
             }

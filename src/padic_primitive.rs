@@ -1,5 +1,5 @@
 use crate::discrete::Value;
-use crate::padic::{PadicAccessor, PadicIntegerAccessor};
+use crate::padic::PadicAccessor;
 
 pub struct FinitePadicInteger<Digit: Value> {
     digits: Vec<Digit>,

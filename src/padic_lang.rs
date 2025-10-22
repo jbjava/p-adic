@@ -3,8 +3,6 @@ use crate::padic::{PadicAccessor, PadicNumber};
 use crate::padic_primitive::{FinitePadicInteger, RepeatingPadicInteger};
 use logos::Logos;
 use std::collections::HashMap;
-use std::iter::Map;
-use std::num::{IntErrorKind, ParseIntError};
 
 #[derive(Logos, Debug, PartialEq)]
 #[logos(skip r"[ \t\n\f]+")] // Ignore this regex pattern between tokens

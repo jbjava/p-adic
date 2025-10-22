@@ -4,8 +4,8 @@ extern crate core;
 use crate::discrete::AddGroupU8;
 use crate::padic::PadicNumber;
 use crate::padic_lang::parse_padic;
-use std::collections::{HashMap, VecDeque};
-use std::io::{BufRead, stdin};
+use std::collections::HashMap;
+use std::io::{stdin, BufRead};
 // #![feature(generic_const_exprs)]
 // #![feature(min_generic_const_args)]
 // #![feature(generic_const_items)]
